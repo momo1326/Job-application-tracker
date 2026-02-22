@@ -16,6 +16,39 @@ type AnalyticsResponse = {
   byStatus: Array<{ status: Status; _count: number }>;
 };
 
+type UserRole = 'ADMIN' | 'USER';
+
+type AdminUser = {
+  id: string;
+  email: string;
+  role: UserRole;
+  isEmailVerified: boolean;
+  createdAt: string;
+  _count: { applications: number };
+};
+
+type ApplicationsResponse = {
+  items: JobApplication[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type AdminUsersResponse = {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type AppFormState = {
+  company: string;
+  title: string;
+  status: Status;
+  location: string;
+  notes: string;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 const STATUS_OPTIONS: Status[] = ['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED'];
 
@@ -27,6 +60,8 @@ const getAuthHeaders = (token: string): HeadersInit => {
 export const App = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [token, setToken] = useState(() => localStorage.getItem('accessToken') ?? '');
+  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem('refreshToken') ?? '');
+  const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('role') as UserRole) ?? 'USER');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -38,12 +73,18 @@ export const App = () => {
   const [pageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, AppFormState>>({});
   const [analytics, setAnalytics] = useState<Record<Status, number>>({
     APPLIED: 0,
     INTERVIEW: 0,
     OFFER: 0,
     REJECTED: 0
   });
+
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [adminTotal, setAdminTotal] = useState(0);
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminPageSize] = useState(10);
 
   const [company, setCompany] = useState('');
   const [title, setTitle] = useState('');
@@ -52,33 +93,85 @@ export const App = () => {
   const [notes, setNotes] = useState('');
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const adminTotalPages = Math.max(1, Math.ceil(adminTotal / adminPageSize));
   const maxBar = useMemo(() => Math.max(1, ...Object.values(analytics)), [analytics]);
 
-  const authHeaders = getAuthHeaders(token);
+  const setSession = (nextAccessToken: string, nextRefreshToken: string, nextRole: UserRole) => {
+    localStorage.setItem('accessToken', nextAccessToken);
+    localStorage.setItem('refreshToken', nextRefreshToken);
+    localStorage.setItem('role', nextRole);
+    setToken(nextAccessToken);
+    setRefreshToken(nextRefreshToken);
+    setRole(nextRole);
+  };
+
+  const clearSession = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('role');
+    setToken('');
+    setRefreshToken('');
+    setRole('USER');
+    setItems([]);
+    setTotal(0);
+    setAdminUsers([]);
+    setAdminTotal(0);
+    setDrafts({});
+  };
+
+  const authApiRequest = async (path: string, options: RequestInit = {}, canRetry = true) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: { ...getAuthHeaders(token), ...(options.headers ?? {}) }
+    });
+
+    if (response.status !== 401 || !canRetry || !refreshToken) {
+      return response;
+    }
+
+    const refreshResponse = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+
+    if (!refreshResponse.ok) {
+      clearSession();
+      setMessage('Session expired. Please login again.');
+      return response;
+    }
+
+    const refreshedData = await refreshResponse.json();
+    localStorage.setItem('accessToken', refreshedData.accessToken);
+    localStorage.setItem('refreshToken', refreshedData.refreshToken);
+    setToken(refreshedData.accessToken);
+    setRefreshToken(refreshedData.refreshToken);
+
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: { ...getAuthHeaders(refreshedData.accessToken), ...(options.headers ?? {}) }
+    });
+  };
 
   const fetchApplications = async () => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (statusFilter) params.set('status', statusFilter);
     if (companyFilter) params.set('company', companyFilter);
 
-    const response = await fetch(`${API_BASE_URL}/api/applications?${params.toString()}`, {
-      headers: { ...authHeaders }
-    });
+    const response = await authApiRequest(`/api/applications?${params.toString()}`);
 
     if (!response.ok) {
-      if (response.status === 401) logout();
       throw new Error('Failed to load applications');
     }
 
-    const data = await response.json();
+    const data: ApplicationsResponse = await response.json();
     setItems(data.items);
     setTotal(data.total);
+    setDrafts({});
   };
 
   const fetchAnalytics = async () => {
-    const response = await fetch(`${API_BASE_URL}/api/applications/analytics`, {
-      headers: { ...authHeaders }
-    });
+    const response = await authApiRequest('/api/applications/analytics');
 
     if (!response.ok) return;
 
@@ -92,11 +185,23 @@ export const App = () => {
     setAnalytics(next);
   };
 
+  const fetchAdminUsers = async () => {
+    if (role !== 'ADMIN') return;
+
+    const params = new URLSearchParams({ page: String(adminPage), pageSize: String(adminPageSize) });
+    const response = await authApiRequest(`/api/applications/admin/users?${params.toString()}`);
+    if (!response.ok) return;
+
+    const data: AdminUsersResponse = await response.json();
+    setAdminUsers(data.items);
+    setAdminTotal(data.total);
+  };
+
   const loadDashboard = async () => {
     setLoading(true);
     setMessage('');
     try {
-      await Promise.all([fetchApplications(), fetchAnalytics()]);
+      await Promise.all([fetchApplications(), fetchAnalytics(), fetchAdminUsers()]);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to load dashboard');
     } finally {
@@ -107,13 +212,10 @@ export const App = () => {
   useEffect(() => {
     if (!token) return;
     void loadDashboard();
-  }, [token, page, statusFilter, companyFilter]);
+  }, [token, refreshToken, role, page, statusFilter, companyFilter, adminPage]);
 
   const logout = () => {
-    localStorage.removeItem('accessToken');
-    setToken('');
-    setItems([]);
-    setTotal(0);
+    clearSession();
     setMessage('Logged out');
   };
 
@@ -143,8 +245,7 @@ export const App = () => {
       return;
     }
 
-    localStorage.setItem('accessToken', data.accessToken);
-    setToken(data.accessToken);
+    setSession(data.accessToken, data.refreshToken, data.role);
     setMessage('Welcome back');
   };
 
@@ -153,9 +254,9 @@ export const App = () => {
     setLoading(true);
     setMessage('');
 
-    const response = await fetch(`${API_BASE_URL}/api/applications`, {
+    const response = await authApiRequest('/api/applications', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company, title, status, location, notes })
     });
 
@@ -177,9 +278,8 @@ export const App = () => {
   };
 
   const onDeleteApplication = async (id: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/applications/${id}`, {
+    const response = await authApiRequest(`/api/applications/${id}`, {
       method: 'DELETE',
-      headers: { ...authHeaders }
     });
 
     if (!response.ok) {
@@ -187,7 +287,61 @@ export const App = () => {
       return;
     }
 
+    setItems((current) => current.filter((item) => item.id !== id));
     setMessage('Application deleted');
+    await loadDashboard();
+  };
+
+  const toDraft = (application: JobApplication): AppFormState => ({
+    company: application.company,
+    title: application.title,
+    status: application.status,
+    location: application.location ?? '',
+    notes: application.notes ?? ''
+  });
+
+  const onChangeDraft = (id: string, application: JobApplication, key: keyof AppFormState, value: string) => {
+    const base = drafts[id] ?? toDraft(application);
+    setDrafts((current) => ({ ...current, [id]: { ...base, [key]: value } }));
+  };
+
+  const onCancelDraft = (id: string) => {
+    setDrafts((current) => {
+      const copy = { ...current };
+      delete copy[id];
+      return copy;
+    });
+  };
+
+  const onSaveDraft = async (application: JobApplication) => {
+    const draft = drafts[application.id];
+    if (!draft) return;
+
+    const payload: Partial<AppFormState> = {};
+    if (draft.company !== application.company) payload.company = draft.company;
+    if (draft.title !== application.title) payload.title = draft.title;
+    if (draft.status !== application.status) payload.status = draft.status;
+    if (draft.location !== (application.location ?? '')) payload.location = draft.location;
+    if (draft.notes !== (application.notes ?? '')) payload.notes = draft.notes;
+
+    if (Object.keys(payload).length === 0) {
+      setMessage('No changes to save');
+      return;
+    }
+
+    const response = await authApiRequest(`/api/applications/${application.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      setMessage('Failed to update application');
+      return;
+    }
+
+    setMessage('Application updated');
+    onCancelDraft(application.id);
     await loadDashboard();
   };
 
@@ -229,6 +383,7 @@ export const App = () => {
         <div>
           <h1>Job Application Tracker</h1>
           <p className="subtitle">Track applications, status, and hiring activity</p>
+          <p className="role-badge">Role: {role}</p>
         </div>
         <button onClick={logout}>Logout</button>
       </header>
@@ -336,12 +491,35 @@ export const App = () => {
             ) : (
               items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.company}</td>
-                  <td>{item.title}</td>
-                  <td>{item.status}</td>
+                  <td>
+                    <input
+                      value={(drafts[item.id]?.company ?? item.company)}
+                      onChange={(event) => onChangeDraft(item.id, item, 'company', event.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={(drafts[item.id]?.title ?? item.title)}
+                      onChange={(event) => onChangeDraft(item.id, item, 'title', event.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <select
+                        value={drafts[item.id]?.status ?? item.status}
+                        onChange={(event) => onChangeDraft(item.id, item, 'status', event.target.value as Status)}
+                      >
+                        {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </div>
+                  </td>
                   <td>{new Date(item.createdAt).toLocaleDateString()}</td>
                   <td>
-                    <button className="danger-button" onClick={() => onDeleteApplication(item.id)}>Delete</button>
+                    <div className="row-actions">
+                      <button onClick={() => onSaveDraft(item)} disabled={!drafts[item.id]}>Save</button>
+                      <button onClick={() => onCancelDraft(item.id)} disabled={!drafts[item.id]}>Cancel</button>
+                      <button className="danger-button" onClick={() => onDeleteApplication(item.id)}>Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -354,6 +532,45 @@ export const App = () => {
           <button onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages}>Next</button>
         </div>
       </section>
+
+      {role === 'ADMIN' ? (
+        <section className="card">
+          <h2>Admin Users</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Verified</th>
+                <th>Applications</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No users found.</td>
+                </tr>
+              ) : (
+                adminUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td>{user.email}</td>
+                    <td>{user.role}</td>
+                    <td>{user.isEmailVerified ? 'Yes' : 'No'}</td>
+                    <td>{user._count.applications}</td>
+                    <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <div className="pagination">
+            <button onClick={() => setAdminPage((current) => Math.max(1, current - 1))} disabled={adminPage === 1}>Previous</button>
+            <span>Page {adminPage} of {adminTotalPages}</span>
+            <button onClick={() => setAdminPage((current) => Math.min(adminTotalPages, current + 1))} disabled={adminPage >= adminTotalPages}>Next</button>
+          </div>
+        </section>
+      ) : null}
 
       {message ? <p className="message">{message}</p> : null}
     </main>

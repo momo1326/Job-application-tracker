@@ -46,3 +46,27 @@ export const deleteApplication = async (userId, applicationId) => {
         throw notFound('Application not found');
     await prisma.jobApplication.delete({ where: { id: applicationId } });
 };
+export const listUsersForAdmin = async (query) => {
+    const page = Number(query.page ?? 1);
+    const pageSize = Number(query.pageSize ?? 10);
+    const skip = (page - 1) * pageSize;
+    const [items, total] = await Promise.all([
+        prisma.user.findMany({
+            skip,
+            take: pageSize,
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                isEmailVerified: true,
+                createdAt: true,
+                _count: {
+                    select: { applications: true }
+                }
+            }
+        }),
+        prisma.user.count()
+    ]);
+    return { items, total, page, pageSize };
+};

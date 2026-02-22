@@ -8,6 +8,7 @@ body { margin: 0; }
 .analytics ul { list-style: none; padding: 0; }
 .analytics li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
 .header-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.role-badge { margin: 8px 0 0; color: #1f2937; font-size: 13px; }
 
 .auth-layout { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .auth-card { width: 100%; max-width: 440px; }
@@ -59,6 +60,9 @@ th, td {
 	margin-top: 12px;
 }
 .danger-button { color: #b91c1c; }
+.row-actions { display: flex; gap: 8px; align-items: center; }
+.row-actions select { min-width: 130px; }
+.row-actions input { min-width: 130px; }
 
 @media (max-width: 900px) {
 	.grid { grid-template-columns: repeat(2, 1fr); }

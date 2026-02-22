@@ -7,19 +7,22 @@ const listApplicationsMock = vi.fn();
 const updateApplicationMock = vi.fn();
 const deleteApplicationMock = vi.fn();
 const getAnalyticsMock = vi.fn();
+const listUsersForAdminMock = vi.fn();
 
 vi.mock('../src/services/applicationService.js', () => ({
   createApplication: createApplicationMock,
   listApplications: listApplicationsMock,
   updateApplication: updateApplicationMock,
   deleteApplication: deleteApplicationMock,
-  getAnalytics: getAnalyticsMock
+  getAnalytics: getAnalyticsMock,
+  listUsersForAdmin: listUsersForAdminMock
 }));
 
 const { app } = await import('../src/app.js');
 
 describe('application routes', () => {
   const accessToken = createAccessToken({ sub: 'user_123', role: 'USER' });
+  const adminAccessToken = createAccessToken({ sub: 'admin_1', role: 'ADMIN' });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,6 +71,24 @@ describe('application routes', () => {
     expect(createApplicationMock).toHaveBeenCalledTimes(1);
   });
 
+  it('PATCH /api/applications/:id updates a record', async () => {
+    updateApplicationMock.mockResolvedValueOnce({
+      id: 'app_2',
+      company: 'Beta Corp',
+      title: 'Backend Engineer',
+      status: 'OFFER'
+    });
+
+    const response = await request(app)
+      .patch('/api/applications/app_2')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'OFFER' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('OFFER');
+    expect(updateApplicationMock).toHaveBeenCalledWith('user_123', 'app_2', { status: 'OFFER' });
+  });
+
   it('DELETE /api/applications/:id deletes a record', async () => {
     deleteApplicationMock.mockResolvedValueOnce(undefined);
 
@@ -77,5 +98,31 @@ describe('application routes', () => {
 
     expect(response.status).toBe(204);
     expect(deleteApplicationMock).toHaveBeenCalledWith('user_123', 'app_2');
+  });
+
+  it('GET /api/applications/admin/users is forbidden for non-admin', async () => {
+    const response = await request(app)
+      .get('/api/applications/admin/users')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('Forbidden');
+  });
+
+  it('GET /api/applications/admin/users returns data for admin', async () => {
+    listUsersForAdminMock.mockResolvedValueOnce({
+      items: [{ id: 'admin_1', email: 'admin@example.com', role: 'ADMIN', _count: { applications: 5 } }],
+      total: 1,
+      page: 1,
+      pageSize: 10
+    });
+
+    const response = await request(app)
+      .get('/api/applications/admin/users?page=1&pageSize=10')
+      .set('Authorization', `Bearer ${adminAccessToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.total).toBe(1);
+    expect(listUsersForAdminMock).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
   });
 });

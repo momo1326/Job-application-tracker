@@ -2,9 +2,33 @@ import { ApplicationStatus } from '@prisma/client';
 import { prisma } from '../models/prisma.js';
 import { notFound } from '../utils/httpError.js';
 
-export const createApplication = (userId: string, data: any) => prisma.jobApplication.create({ data: { ...data, userId } });
+type CreateApplicationInput = {
+  company: string;
+  title: string;
+  status?: ApplicationStatus;
+  location?: string;
+  notes?: string;
+};
 
-export const listApplications = async (userId: string, query: any) => {
+type UpdateApplicationInput = Partial<CreateApplicationInput>;
+
+type ListApplicationsQuery = {
+  page?: number;
+  pageSize?: number;
+  status?: ApplicationStatus;
+  company?: string;
+  sortBy?: 'createdAt' | 'appliedDate' | 'company' | 'status' | 'title';
+  sortOrder?: 'asc' | 'desc';
+};
+
+type AdminUsersQuery = {
+  page?: number;
+  pageSize?: number;
+};
+
+export const createApplication = (userId: string, data: CreateApplicationInput) => prisma.jobApplication.create({ data: { ...data, userId } });
+
+export const listApplications = async (userId: string, query: ListApplicationsQuery) => {
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
   const skip = (page - 1) * pageSize;
@@ -41,7 +65,7 @@ export const getAnalytics = async (userId: string) => {
   };
 };
 
-export const updateApplication = async (userId: string, applicationId: string, data: any) => {
+export const updateApplication = async (userId: string, applicationId: string, data: UpdateApplicationInput) => {
   const existing = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId } });
   if (!existing) throw notFound('Application not found');
 
@@ -56,4 +80,31 @@ export const deleteApplication = async (userId: string, applicationId: string) =
   if (!existing) throw notFound('Application not found');
 
   await prisma.jobApplication.delete({ where: { id: applicationId } });
+};
+
+export const listUsersForAdmin = async (query: AdminUsersQuery) => {
+  const page = Number(query.page ?? 1);
+  const pageSize = Number(query.pageSize ?? 10);
+  const skip = (page - 1) * pageSize;
+
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({
+      skip,
+      take: pageSize,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        createdAt: true,
+        _count: {
+          select: { applications: true }
+        }
+      }
+    }),
+    prisma.user.count()
+  ]);
+
+  return { items, total, page, pageSize };
 };

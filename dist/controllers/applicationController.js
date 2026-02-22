@@ -7,6 +7,18 @@ const createSchema = z.object({
     location: z.string().optional(),
     notes: z.string().optional()
 });
+const listQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).optional(),
+    pageSize: z.coerce.number().int().min(1).max(50).optional(),
+    status: z.enum(['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED']).optional(),
+    company: z.string().optional(),
+    sortBy: z.enum(['createdAt', 'appliedDate', 'company', 'status', 'title']).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional()
+});
+const adminListQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).optional(),
+    pageSize: z.coerce.number().int().min(1).max(50).optional()
+});
 const updateSchema = z.object({
     company: z.string().min(1).optional(),
     title: z.string().min(1).optional(),
@@ -20,7 +32,8 @@ export const createApplication = async (req, res) => {
     res.status(201).json(application);
 };
 export const listApplications = async (req, res) => {
-    const result = await applicationService.listApplications(req.user.id, req.query);
+    const query = listQuerySchema.parse(req.query);
+    const result = await applicationService.listApplications(req.user.id, query);
     res.json(result);
 };
 export const updateApplication = async (req, res) => {
@@ -38,6 +51,8 @@ export const analytics = async (req, res) => {
     const result = await applicationService.getAnalytics(req.user.id);
     res.json(result);
 };
-export const adminUsers = async (_req, res) => {
-    res.json({ message: 'Admin dashboard endpoint placeholder' });
+export const adminUsers = async (req, res) => {
+    const query = adminListQuerySchema.parse(req.query);
+    const result = await applicationService.listUsersForAdmin(query);
+    res.json(result);
 };

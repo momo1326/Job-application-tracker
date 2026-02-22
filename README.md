@@ -11,7 +11,10 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
 - Logging (`morgan`) + centralized error middleware
 - PostgreSQL + Prisma with relations, indexes, pagination, filtering, and sorting
 - Frontend auth (signup/login) + dashboard with filters, pagination, create, and delete actions
+- Frontend auth with automatic token refresh session handling
 - Dashboard UI with status cards + status-distribution chart
+- Inline application editing (company/title/status) with save/cancel controls
+- Admin dashboard section for user list + application counts (ADMIN role)
 - Deployment configs for Render (API) and Vercel (frontend)
 
 ## Backend setup
@@ -46,7 +49,9 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
   - `POST /api/auth/login`
   - `GET /api/applications`
   - `POST /api/applications`
+	- `PATCH /api/applications/:id`
   - `DELETE /api/applications/:id`
+	- `GET /api/applications/admin/users`
 
 ## Frontend environment
 Set `src/frontend/.env`:
