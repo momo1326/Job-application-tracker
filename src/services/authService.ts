@@ -4,8 +4,12 @@ import { hashPassword, verifyPassword } from '../utils/hash.js';
 import { createAccessToken, createRefreshToken, verifyRefreshToken } from '../utils/tokens.js';
 import { sendEmail } from '../utils/mailer.js';
 import { config } from '../config.js';
+import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
 
 export const register = async (email: string, password: string) => {
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) throw conflict('Email already registered');
+
   const passwordHash = await hashPassword(password);
   const verificationToken = crypto.randomBytes(24).toString('hex');
 
@@ -23,8 +27,10 @@ export const register = async (email: string, password: string) => {
 };
 
 export const verifyEmail = async (token: string) => {
+  if (!token || token === 'undefined') throw badRequest('Verification token is required');
+
   const user = await prisma.user.findFirst({ where: { verificationToken: token } });
-  if (!user) throw new Error('Invalid verification token');
+  if (!user) throw badRequest('Invalid verification token');
 
   await prisma.user.update({
     where: { id: user.id },
@@ -34,11 +40,11 @@ export const verifyEmail = async (token: string) => {
 
 export const login = async (email: string, password: string) => {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error('Invalid credentials');
-  if (!user.isEmailVerified) throw new Error('Email is not verified');
+  if (!user) throw unauthorized('Invalid credentials');
+  if (!user.isEmailVerified) throw unauthorized('Email is not verified');
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) throw new Error('Invalid credentials');
+  if (!valid) throw unauthorized('Invalid credentials');
 
   const payload = { sub: user.id, role: user.role } as const;
   const accessToken = createAccessToken(payload);
@@ -52,11 +58,14 @@ export const login = async (email: string, password: string) => {
 export const refresh = async (token: string) => {
   const payload = verifyRefreshToken(token);
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-  if (!user || user.refreshToken !== token) throw new Error('Invalid refresh token');
+  if (!user || user.refreshToken !== token) throw unauthorized('Invalid refresh token');
+
+  const nextRefreshToken = createRefreshToken({ sub: user.id, role: user.role });
+  await prisma.user.update({ where: { id: user.id }, data: { refreshToken: nextRefreshToken } });
 
   return {
     accessToken: createAccessToken({ sub: user.id, role: user.role }),
-    refreshToken: createRefreshToken({ sub: user.id, role: user.role })
+    refreshToken: nextRefreshToken
   };
 };
 
@@ -72,7 +81,7 @@ export const requestPasswordReset = async (email: string) => {
 
 export const resetPassword = async (token: string, newPassword: string) => {
   const user = await prisma.user.findFirst({ where: { resetToken: token } });
-  if (!user) throw new Error('Invalid reset token');
+  if (!user) throw badRequest('Invalid reset token');
 
   await prisma.user.update({
     where: { id: user.id },

@@ -10,7 +10,8 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
 - Rate limiting on auth endpoints
 - Logging (`morgan`) + centralized error middleware
 - PostgreSQL + Prisma with relations, indexes, pagination, filtering, and sorting
-- Dashboard UI with status cards + monthly analytics
+- Frontend auth (signup/login) + dashboard with filters, pagination, create, and delete actions
+- Dashboard UI with status cards + status-distribution chart
 - Deployment configs for Render (API) and Vercel (frontend)
 
 ## Backend setup
@@ -33,5 +34,46 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
 - `POST /api/auth/reset-password`
 - `POST /api/applications` (auth)
 - `GET /api/applications` (auth; supports `page,pageSize,status,company,sortBy,sortOrder`)
+- `PATCH /api/applications/:id` (auth)
+- `DELETE /api/applications/:id` (auth)
 - `GET /api/applications/analytics` (auth)
 - `GET /api/applications/admin/users` (admin only)
+
+## Testing
+- Run backend tests: `npm test`
+- Route tests cover:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `GET /api/applications`
+  - `POST /api/applications`
+  - `DELETE /api/applications/:id`
+
+## Frontend environment
+Set `frontend/.env`:
+
+```bash
+VITE_API_BASE_URL=https://your-backend-url
+```
+
+When not set, frontend defaults to `http://localhost:4000`.
+
+## Deployment
+
+### Backend (Render)
+1. Create a PostgreSQL database (Render or external).
+2. Create a Render Web Service pointing to this repository.
+3. Use:
+	- Build command: `npm install && npm run prisma:generate && npm run build`
+	- Start command: `npm run start`
+4. Add env vars:
+	- `DATABASE_URL`
+	- `JWT_ACCESS_SECRET`
+	- `JWT_REFRESH_SECRET`
+	- `APP_URL` (frontend URL)
+	- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+5. Run migrations once: `npm run prisma:migrate`.
+
+### Frontend (Vercel)
+1. Import the `frontend/` directory as a Vercel project.
+2. Set environment variable `VITE_API_BASE_URL` to your Render backend URL.
+3. Deploy.

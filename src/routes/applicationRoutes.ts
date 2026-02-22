@@ -7,6 +7,8 @@ const router = Router();
 router.use(requireAuth);
 router.post('/', applicationController.createApplication);
 router.get('/', applicationController.listApplications);
+router.patch('/:id', applicationController.updateApplication);
+router.delete('/:id', applicationController.deleteApplication);
 router.get('/analytics', applicationController.analytics);
 router.get('/admin/users', requireRole('ADMIN'), applicationController.adminUsers);
 

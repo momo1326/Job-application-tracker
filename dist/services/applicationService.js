@@ -1,0 +1,48 @@
+import { prisma } from '../models/prisma.js';
+import { notFound } from '../utils/httpError.js';
+export const createApplication = (userId, data) => prisma.jobApplication.create({ data: { ...data, userId } });
+export const listApplications = async (userId, query) => {
+    const page = Number(query.page ?? 1);
+    const pageSize = Number(query.pageSize ?? 10);
+    const skip = (page - 1) * pageSize;
+    const where = {
+        userId,
+        status: query.status ? query.status : undefined,
+        company: query.company ? { contains: query.company, mode: 'insensitive' } : undefined
+    };
+    const orderBy = query.sortBy ? { [query.sortBy]: query.sortOrder === 'asc' ? 'asc' : 'desc' } : { createdAt: 'desc' };
+    const [items, total] = await Promise.all([
+        prisma.jobApplication.findMany({ where, skip, take: pageSize, orderBy }),
+        prisma.jobApplication.count({ where })
+    ]);
+    return { items, total, page, pageSize };
+};
+export const getAnalytics = async (userId) => {
+    const byStatus = await prisma.jobApplication.groupBy({ by: ['status'], _count: true, where: { userId } });
+    const monthly = await prisma.$queryRaw `
+    SELECT to_char(date_trunc('month', "appliedDate"), 'YYYY-MM') as month, COUNT(*)::bigint as count
+    FROM "JobApplication"
+    WHERE "userId" = ${userId}
+    GROUP BY 1
+    ORDER BY 1;
+  `;
+    return {
+        byStatus,
+        monthly: monthly.map((m) => ({ month: m.month, count: Number(m.count) }))
+    };
+};
+export const updateApplication = async (userId, applicationId, data) => {
+    const existing = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId } });
+    if (!existing)
+        throw notFound('Application not found');
+    return prisma.jobApplication.update({
+        where: { id: applicationId },
+        data
+    });
+};
+export const deleteApplication = async (userId, applicationId) => {
+    const existing = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId } });
+    if (!existing)
+        throw notFound('Application not found');
+    await prisma.jobApplication.delete({ where: { id: applicationId } });
+};

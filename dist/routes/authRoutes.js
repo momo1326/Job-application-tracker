@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import * as authController from '../controllers/authController.js';
+import { authRateLimiter } from '../middleware/rateLimiter.js';
+const router = Router();
+router.post('/register', authRateLimiter, authController.register);
+router.get('/verify-email', authController.verifyEmail);
+router.post('/login', authRateLimiter, authController.login);
+router.post('/refresh', authController.refresh);
+router.post('/request-password-reset', authRateLimiter, authController.requestPasswordReset);
+router.post('/reset-password', authController.resetPassword);
+export default router;

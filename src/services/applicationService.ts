@@ -1,5 +1,6 @@
 import { ApplicationStatus } from '@prisma/client';
 import { prisma } from '../models/prisma.js';
+import { notFound } from '../utils/httpError.js';
 
 export const createApplication = (userId: string, data: any) => prisma.jobApplication.create({ data: { ...data, userId } });
 
@@ -38,4 +39,21 @@ export const getAnalytics = async (userId: string) => {
     byStatus,
     monthly: monthly.map((m) => ({ month: m.month, count: Number(m.count) }))
   };
+};
+
+export const updateApplication = async (userId: string, applicationId: string, data: any) => {
+  const existing = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId } });
+  if (!existing) throw notFound('Application not found');
+
+  return prisma.jobApplication.update({
+    where: { id: applicationId },
+    data
+  });
+};
+
+export const deleteApplication = async (userId: string, applicationId: string) => {
+  const existing = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId } });
+  if (!existing) throw notFound('Application not found');
+
+  await prisma.jobApplication.delete({ where: { id: applicationId } });
 };
