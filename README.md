@@ -22,7 +22,7 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
 5. Start API: `npm run dev`
 
 ## Frontend setup
-1. `cd frontend && npm install`
+1. `cd src/frontend && npm install`
 2. `npm run dev`
 
 ## API endpoints
@@ -49,7 +49,7 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
   - `DELETE /api/applications/:id`
 
 ## Frontend environment
-Set `frontend/.env`:
+Set `src/frontend/.env`:
 
 ```bash
 VITE_API_BASE_URL=https://your-backend-url
@@ -74,6 +74,6 @@ When not set, frontend defaults to `http://localhost:4000`.
 5. Run migrations once: `npm run prisma:migrate`.
 
 ### Frontend (Vercel)
-1. Import the `frontend/` directory as a Vercel project.
+1. Import the `src/frontend/` directory as a Vercel project.
 2. Set environment variable `VITE_API_BASE_URL` to your Render backend URL.
 3. Deploy.

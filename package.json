@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
+    "build:all": "npm run build && npm --prefix src/frontend run build",
     "start": "node dist/server.js",
     "lint": "eslint .",
     "test": "vitest run",
+    "frontend:dev": "npm --prefix src/frontend run dev",
+    "frontend:build": "npm --prefix src/frontend run build",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
