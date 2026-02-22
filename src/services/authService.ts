@@ -5,8 +5,9 @@ import { createAccessToken, createRefreshToken, verifyRefreshToken } from '../ut
 import { sendEmail } from '../utils/mailer.js';
 import { config } from '../config.js';
 import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
+import type { LoginResponse, RefreshResponse, RegisterResponse } from '../contracts/api.js';
 
-export const register = async (email: string, password: string) => {
+export const register = async (email: string, password: string): Promise<RegisterResponse> => {
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) throw conflict('Email already registered');
 
@@ -38,7 +39,7 @@ export const verifyEmail = async (token: string) => {
   });
 };
 
-export const login = async (email: string, password: string) => {
+export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw unauthorized('Invalid credentials');
   if (!user.isEmailVerified) throw unauthorized('Email is not verified');
@@ -55,7 +56,7 @@ export const login = async (email: string, password: string) => {
   return { accessToken, refreshToken, role: user.role };
 };
 
-export const refresh = async (token: string) => {
+export const refresh = async (token: string): Promise<RefreshResponse> => {
   const payload = verifyRefreshToken(token);
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
   if (!user || user.refreshToken !== token) throw unauthorized('Invalid refresh token');

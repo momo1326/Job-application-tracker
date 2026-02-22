@@ -1,30 +1,17 @@
 import { ApplicationStatus } from '@prisma/client';
 import { prisma } from '../models/prisma.js';
 import { notFound } from '../utils/httpError.js';
+import type { AdminUsersQuery, ListApplicationsQuery, Status } from '../contracts/api.js';
 
 type CreateApplicationInput = {
   company: string;
   title: string;
-  status?: ApplicationStatus;
+  status?: Status;
   location?: string;
   notes?: string;
 };
 
 type UpdateApplicationInput = Partial<CreateApplicationInput>;
-
-type ListApplicationsQuery = {
-  page?: number;
-  pageSize?: number;
-  status?: ApplicationStatus;
-  company?: string;
-  sortBy?: 'createdAt' | 'appliedDate' | 'company' | 'status' | 'title';
-  sortOrder?: 'asc' | 'desc';
-};
-
-type AdminUsersQuery = {
-  page?: number;
-  pageSize?: number;
-};
 
 export const createApplication = (userId: string, data: CreateApplicationInput) => prisma.jobApplication.create({ data: { ...data, userId } });
 

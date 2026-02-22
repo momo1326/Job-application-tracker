@@ -10,7 +10,7 @@ Full-stack SaaS starter with a TypeScript/Express backend and React dashboard fr
 - Rate limiting on auth endpoints
 - Logging (`morgan`) + centralized error middleware
 - PostgreSQL + Prisma with relations, indexes, pagination, filtering, and sorting
-- Frontend auth (signup/login) + dashboard with filters, pagination, create, and delete actions
+- Frontend auth (signup/login) + dashboard with filters, sorting, pagination, create, and delete actions
 - Frontend auth with automatic token refresh session handling
 - Dashboard UI with status cards + status-distribution chart
 - Inline application editing (company/title/status) with save/cancel controls

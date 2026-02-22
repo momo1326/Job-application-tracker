@@ -53,4 +53,20 @@ describe('auth routes', () => {
     expect(response.body.role).toBe('USER');
     expect(loginMock).toHaveBeenCalledWith('demo@example.com', 'password123');
   });
+
+  it('POST /api/auth/refresh returns rotated tokens', async () => {
+    refreshMock.mockResolvedValueOnce({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token'
+    });
+
+    const response = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: 'old-refresh-token' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.accessToken).toBe('new-access-token');
+    expect(response.body.refreshToken).toBe('new-refresh-token');
+    expect(refreshMock).toHaveBeenCalledWith('old-refresh-token');
+  });
 });

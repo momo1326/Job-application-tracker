@@ -1,45 +1,18 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import type {
+  AdminUserDto,
+  AdminUsersResponse,
+  AnalyticsResponse,
+  JobApplicationDto,
+  ListApplicationsResponse,
+  LoginResponse,
+  RefreshResponse,
+  Status,
+  UserRole
+} from '../../contracts/api';
 
-type Status = 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
-
-type JobApplication = {
-  id: string;
-  company: string;
-  title: string;
-  status: Status;
-  location: string | null;
-  notes: string | null;
-  createdAt: string;
-};
-
-type AnalyticsResponse = {
-  byStatus: Array<{ status: Status; _count: number }>;
-};
-
-type UserRole = 'ADMIN' | 'USER';
-
-type AdminUser = {
-  id: string;
-  email: string;
-  role: UserRole;
-  isEmailVerified: boolean;
-  createdAt: string;
-  _count: { applications: number };
-};
-
-type ApplicationsResponse = {
-  items: JobApplication[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
-
-type AdminUsersResponse = {
-  items: AdminUser[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
+type JobApplication = JobApplicationDto;
+type AdminUser = AdminUserDto;
 
 type AppFormState = {
   company: string;
@@ -73,6 +46,8 @@ export const App = () => {
   const [pageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'appliedDate' | 'company' | 'status' | 'title'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [drafts, setDrafts] = useState<Record<string, AppFormState>>({});
   const [analytics, setAnalytics] = useState<Record<Status, number>>({
     APPLIED: 0,
@@ -141,7 +116,7 @@ export const App = () => {
       return response;
     }
 
-    const refreshedData = await refreshResponse.json();
+    const refreshedData: RefreshResponse = await refreshResponse.json();
     localStorage.setItem('accessToken', refreshedData.accessToken);
     localStorage.setItem('refreshToken', refreshedData.refreshToken);
     setToken(refreshedData.accessToken);
@@ -157,6 +132,8 @@ export const App = () => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (statusFilter) params.set('status', statusFilter);
     if (companyFilter) params.set('company', companyFilter);
+    params.set('sortBy', sortBy);
+    params.set('sortOrder', sortOrder);
 
     const response = await authApiRequest(`/api/applications?${params.toString()}`);
 
@@ -164,7 +141,7 @@ export const App = () => {
       throw new Error('Failed to load applications');
     }
 
-    const data: ApplicationsResponse = await response.json();
+    const data: ListApplicationsResponse = await response.json();
     setItems(data.items);
     setTotal(data.total);
     setDrafts({});
@@ -212,7 +189,7 @@ export const App = () => {
   useEffect(() => {
     if (!token) return;
     void loadDashboard();
-  }, [token, refreshToken, role, page, statusFilter, companyFilter, adminPage]);
+  }, [token, refreshToken, role, page, statusFilter, companyFilter, sortBy, sortOrder, adminPage]);
 
   const logout = () => {
     clearSession();
@@ -231,13 +208,15 @@ export const App = () => {
       body: JSON.stringify({ email, password })
     });
 
-    const data = await response.json();
+    const raw = await response.json();
     setLoading(false);
 
     if (!response.ok) {
-      setMessage(data.message ?? 'Authentication failed');
+      setMessage((raw as { message?: string }).message ?? 'Authentication failed');
       return;
     }
+
+    const data = raw as LoginResponse;
 
     if (mode === 'register') {
       setMessage('Registration successful. Verify your email before login.');
@@ -471,6 +450,23 @@ export const App = () => {
               }}
               placeholder="Search company"
             />
+          </label>
+          <label>
+            Sort By
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
+              <option value="createdAt">Created</option>
+              <option value="appliedDate">Applied Date</option>
+              <option value="company">Company</option>
+              <option value="title">Title</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
+          <label>
+            Order
+            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}>
+              <option value="desc">Desc</option>
+              <option value="asc">Asc</option>
+            </select>
           </label>
         </div>
         <table>
