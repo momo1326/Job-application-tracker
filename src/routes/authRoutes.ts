@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import * as authController from '../controllers/authController.js';
 import { authRateLimiter } from '../middleware/rateLimiter.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
-router.post('/register', authRateLimiter, authController.register);
-router.get('/verify-email', authController.verifyEmail);
-router.post('/login', authRateLimiter, authController.login);
-router.post('/refresh', authController.refresh);
-router.post('/request-password-reset', authRateLimiter, authController.requestPasswordReset);
-router.post('/reset-password', authController.resetPassword);
+router.post('/register', authRateLimiter, asyncHandler(authController.register));
+router.get('/verify-email', asyncHandler(authController.verifyEmail));
+router.post('/login', authRateLimiter, asyncHandler(authController.login));
+router.post('/refresh', asyncHandler(authController.refresh));
+router.post('/request-password-reset', authRateLimiter, asyncHandler(authController.requestPasswordReset));
+router.post('/reset-password', asyncHandler(authController.resetPassword));
 
 export default router;

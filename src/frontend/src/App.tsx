@@ -22,7 +22,7 @@ type AppFormState = {
   notes: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL ?? '');
 const STATUS_OPTIONS: Status[] = ['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED'];
 
 const getAuthHeaders = (token: string): HeadersInit => {
@@ -201,31 +201,41 @@ export const App = () => {
     setLoading(true);
     setMessage('');
 
-    const endpoint = mode === 'login' ? 'login' : 'register';
-    const response = await fetch(`${API_BASE_URL}/api/auth/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+      const endpoint = mode === 'login' ? 'login' : 'register';
+      const response = await fetch(`${API_BASE_URL}/api/auth/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    const raw = await response.json();
-    setLoading(false);
+      const raw = await response.json();
 
-    if (!response.ok) {
-      setMessage((raw as { message?: string }).message ?? 'Authentication failed');
-      return;
+      if (!response.ok) {
+        setMessage((raw as { message?: string }).message ?? 'Authentication failed');
+        return;
+      }
+
+      const data = raw as LoginResponse;
+
+      if (mode === 'register') {
+        setMessage('Registration successful. Verify your email before login.');
+        setMode('login');
+        return;
+      }
+
+      setSession(data.accessToken, data.refreshToken, data.role);
+      setMessage('Welcome back');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Network request failed';
+      if (message.toLowerCase().includes('failed to fetch')) {
+        setMessage('Login request was blocked by browser/client. Disable ad blocker for localhost or use 127.0.0.1.');
+      } else {
+        setMessage(message);
+      }
+    } finally {
+      setLoading(false);
     }
-
-    const data = raw as LoginResponse;
-
-    if (mode === 'register') {
-      setMessage('Registration successful. Verify your email before login.');
-      setMode('login');
-      return;
-    }
-
-    setSession(data.accessToken, data.refreshToken, data.role);
-    setMessage('Welcome back');
   };
 
   const onCreateApplication = async (event: FormEvent) => {
